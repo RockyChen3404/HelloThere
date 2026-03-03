@@ -1,4 +1,5 @@
 """HTML page routes rendered with Jinja2."""
+from pathlib import Path
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -12,7 +13,8 @@ from models.review import Review
 from routers.auth import get_current_user_optional, get_current_user
 
 router = APIRouter(tags=["pages"])
-templates = Jinja2Templates(directory="templates")
+_TEMPLATES_DIR = Path(__file__).parent.parent / "templates"
+templates = Jinja2Templates(directory=_TEMPLATES_DIR)
 
 
 @router.get("/", response_class=HTMLResponse)
