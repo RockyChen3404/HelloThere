@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}我的订单 - FoodDelivery{% endblock %}
+
+{% block extra_head %}
+<style>
+.order-card { background:#fff; border-radius:12px; padding:20px; margin-bottom:16px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+.order-card .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.order-card .rest-name { font-size:17px; font-weight:700; }
+.order-card .meta { font-size:13px; color:#888; margin-top:4px; }
+.order-card .footer { display:flex; justify-content:space-between; align-items:center; margin-top:14px; padding-top:14px; border-top:1px solid #f5f5f5; }
+.order-card .total { font-size:16px; font-weight:700; color:#ff4400; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:760px;">
+  <h2 style="margin:24px 0 16px;">📋 我的订单</h2>
+  {% if orders %}
+    {% for order in orders %}
+    {% set rest = restaurants.get(order.restaurant_id) %}
+    <div class="order-card">
+      <div class="header">
+        <div>
+          <div class="rest-name">{{ rest.name if rest else "餐厅" }}</div>
+          <div class="meta">{{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '' }}</div>
+        </div>
+        <span class="badge badge-{{ order.status }}">{{ STATUS_LABEL[order.status] }}</span>
+      </div>
+      <div style="font-size:14px;color:#666;">📍 {{ order.delivery_address }}</div>
+      <div class="footer">
+        <span class="total">¥{{ "%.2f"|format(order.total_price) }}</span>
+        <a href="/orders/{{ order.id }}" class="btn btn-outline btn-sm">查看详情</a>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <div style="text-align:center;padding:80px;color:#aaa;">
+    还没有订单，<a href="/" style="color:#ff4400;">去点餐</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

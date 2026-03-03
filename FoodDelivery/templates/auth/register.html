@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}注册 - FoodDelivery{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width:460px;margin-top:60px;">
+  <div class="card">
+    <div class="card-body">
+      <h2 style="text-align:center;margin-bottom:24px;color:#ff4400;">🍜 注册账号</h2>
+      <div id="err" class="alert alert-error" style="display:none;"></div>
+      <div class="form-group">
+        <label>姓名</label>
+        <input type="text" id="name" placeholder="你的昵称">
+      </div>
+      <div class="form-group">
+        <label>手机号</label>
+        <input type="tel" id="phone" placeholder="手机号（用于登录）">
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input type="password" id="password" placeholder="至少6位">
+      </div>
+      <div class="form-group">
+        <label>我是</label>
+        <select id="role">
+          <option value="customer">顾客 🛍️</option>
+          <option value="merchant">商家 🏪</option>
+          <option value="rider">骑手 🛵</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>收货地址（顾客选填）</label>
+        <input type="text" id="address" placeholder="如：北京市朝阳区xxx">
+      </div>
+      <button class="btn btn-primary" style="width:100%;" onclick="doRegister()">注册</button>
+      <p style="text-align:center;margin-top:16px;font-size:14px;color:#888;">
+        已有账号？<a href="/login" style="color:#ff4400;">去登录</a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function doRegister() {
+  const err = document.getElementById('err');
+  err.style.display = 'none';
+  const payload = {
+    name: document.getElementById('name').value.trim(),
+    phone: document.getElementById('phone').value.trim(),
+    password: document.getElementById('password').value,
+    role: document.getElementById('role').value,
+    address: document.getElementById('address').value.trim() || null,
+  };
+  if (!payload.name || !payload.phone || !payload.password) {
+    err.textContent = '请填写完整信息'; err.style.display='block'; return;
+  }
+  try {
+    const data = await apiFetch('/auth/register', 'POST', payload);
+    const role = data.user.role;
+    if (role === 'merchant') location.href = '/dashboard/merchant';
+    else if (role === 'rider') location.href = '/dashboard/rider';
+    else location.href = '/';
+  } catch(e) {
+    err.textContent = e.message; err.style.display='block';
+  }
+}
+</script>
+{% endblock %}
