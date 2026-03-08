@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}商家后台 - FoodDelivery{% endblock %}
+
+{% block extra_head %}
+<style>
+.tabs { display:flex; gap:4px; background:#fff; border-radius:10px; padding:6px; margin-bottom:20px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+.tab { padding:10px 20px; border-radius:8px; cursor:pointer; font-size:15px; color:#666; }
+.tab.active { background:#ff4400; color:#fff; font-weight:600; }
+.panel { display:none; } .panel.active { display:block; }
+.order-row { display:flex; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid #f5f5f5; }
+.order-row .info { flex:1; }
+.order-row .rest-tag { font-size:12px; background:#fff3ec; color:#ff4400; padding:2px 8px; border-radius:10px; }
+.menu-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:16px; }
+.menu-card { border:1px solid #eee; border-radius:10px; padding:14px; position:relative; }
+.menu-card .item-price { color:#ff4400; font-weight:700; font-size:16px; }
+.badge-avail { background:#d4edda; color:#155724; }
+.badge-unavail { background:#f8d7da; color:#721c24; }
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:200; display:flex;align-items:center;justify-content:center; }
+.modal { background:#fff; border-radius:16px; padding:28px; width:480px; max-width:95vw; }
+.modal h3 { margin-bottom:20px; font-size:18px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h2 style="margin:24px 0 16px;">🏪 商家后台</h2>
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('orders')">📋 订单管理</div>
+    <div class="tab" onclick="switchTab('menu')">🍽️ 菜单管理</div>
+    <div class="tab" onclick="switchTab('restaurant')">🏪 餐厅信息</div>
+  </div>
+
+  <!-- Orders Panel -->
+  <div id="panel-orders" class="panel active">
+    <div class="card">
+      <div class="card-body">
+        <h3 style="margin-bottom:16px;">待处理订单</h3>
+        {% set active_statuses = ['pending','accepted','preparing','ready'] %}
+        {% for order in orders %}
+        {% if order.status.value in active_statuses %}
+        {% set rest = restaurants.get(order.restaurant_id, {}) %}
+        <div class="order-row" id="order-{{ order.id }}">
+          <div class="info">
+            <div class="flex gap-8">
+              <strong>订单 #{{ order.id }}</strong>
+              <span class="badge badge-{{ order.status }}">{{ STATUS_LABEL[order.status] }}</span>
+            </div>
+            <div class="text-sm text-muted mt-8">📍 {{ order.delivery_address }}</div>
+            <div class="text-sm text-muted">💰 ¥{{ "%.2f"|format(order.total_price) }} | {{ order.created_at.strftime('%H:%M') if order.created_at else '' }}</div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            {% if order.status.value == 'pending' %}
+              <button class="btn btn-success btn-sm" onclick="updateOrderStatus({{ order.id }}, 'accepted')">接单</button>
+              <button class="btn btn-danger btn-sm" onclick="updateOrderStatus({{ order.id }}, 'cancelled')">拒单</button>
+            {% elif order.status.value == 'accepted' %}
+              <button class="btn btn-primary btn-sm" onclick="updateOrderStatus({{ order.id }}, 'preparing')">开始制作</button>
+            {% elif order.status.value == 'preparing' %}
+              <button class="btn btn-success btn-sm" onclick="updateOrderStatus({{ order.id }}, 'ready')">出餐完成</button>
+            {% elif order.status.value == 'ready' %}
+              <span class="text-muted text-sm">等待骑手取单...</span>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+        <h3 style="margin:24px 0 16px;">历史订单</h3>
+        {% for order in orders %}
+        {% if order.status.value not in active_statuses %}
+        <div class="order-row">
+          <div class="info">
+            <div class="flex gap-8">
+              <strong>订单 #{{ order.id }}</strong>
+              <span class="badge badge-{{ order.status }}">{{ STATUS_LABEL[order.status] }}</span>
+            </div>
+            <div class="text-sm text-muted">💰 ¥{{ "%.2f"|format(order.total_price) }} | {{ order.created_at.strftime('%Y-%m-%d %H:%M') if order.created_at else '' }}</div>
+          </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Menu Panel -->
+  <div id="panel-menu" class="panel">
+    {% for rest in restaurants %}
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-body">
+        <div class="flex-between" style="margin-bottom:16px;">
+          <h3>{{ rest.name }} — 菜单</h3>
+          <button class="btn btn-primary btn-sm" onclick="showAddItem({{ rest.id }})">+ 添加菜品</button>
+        </div>
+        <div class="menu-grid">
+          {% for item in menu_items.get(rest.id, []) %}
+          <div class="menu-card">
+            <div class="item-name bold">{{ item.name }}</div>
+            {% if item.description %}<div class="text-sm text-muted mt-8">{{ item.description }}</div>{% endif %}
+            <div class="item-price mt-8">¥{{ "%.2f"|format(item.price) }}</div>
+            <div class="mt-8 flex-between">
+              <span class="badge {% if item.is_available %}badge-avail{% else %}badge-unavail{% endif %}">
+                {{ "上架" if item.is_available else "下架" }}
+              </span>
+              <button class="btn btn-secondary btn-sm" onclick="toggleItem({{ item.id }}, {{ 'false' if item.is_available else 'true' }})">
+                {{ "下架" if item.is_available else "上架" }}
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Restaurant Panel -->
+  <div id="panel-restaurant" class="panel">
+    {% for rest in restaurants %}
+    <div class="card" style="margin-bottom:20px;">
+      <div class="card-body">
+        <h3>{{ rest.name }}</h3>
+        <div class="text-muted text-sm mt-8">📍 {{ rest.address }}</div>
+        <div class="flex gap-8 mt-16">
+          <button class="btn {% if rest.is_open %}btn-warning{% else %}btn-success{% endif %} btn-sm"
+            onclick="toggleRestaurant({{ rest.id }}, {{ 'false' if rest.is_open else 'true' }})">
+            {{ "暂停营业" if rest.is_open else "开始营业" }}
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not restaurants %}
+    <div class="card card-body" style="text-align:center;padding:40px;">
+      <p class="text-muted">还没有餐厅，创建第一家吧</p>
+      <button class="btn btn-primary mt-16" onclick="showCreateRestaurant()">+ 创建餐厅</button>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Add Item Modal -->
+<div id="addItemModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)this.style.display='none'">
+  <div class="modal">
+    <h3>添加菜品</h3>
+    <input type="hidden" id="addItemRestId">
+    <div class="form-group"><label>菜品名称</label><input type="text" id="addItemName" placeholder="如：红烧肉"></div>
+    <div class="form-group"><label>描述（选填）</label><input type="text" id="addItemDesc" placeholder="简短描述"></div>
+    <div class="form-group"><label>价格（¥）</label><input type="number" id="addItemPrice" step="0.5" placeholder="0.00"></div>
+    <div class="flex gap-8">
+      <button class="btn btn-primary" style="flex:1;" onclick="submitAddItem()">添加</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('addItemModal').style.display='none'">取消</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById(`panel-${name}`).classList.add('active');
+}
+
+async function updateOrderStatus(orderId, status) {
+  try {
+    await apiFetch(`/orders/${orderId}/status`, 'PATCH', { status });
+    toast('订单状态已更新');
+    setTimeout(() => location.reload(), 800);
+  } catch(e) { toast(e.message); }
+}
+
+async function toggleItem(itemId, isAvailable) {
+  try {
+    await apiFetch(`/menu/items/${itemId}`, 'PUT', { is_available: isAvailable === 'true' || isAvailable === true });
+    toast('菜品状态已更新');
+    setTimeout(() => location.reload(), 600);
+  } catch(e) { toast(e.message); }
+}
+
+async function toggleRestaurant(restId, isOpen) {
+  try {
+    await apiFetch(`/restaurants/${restId}`, 'PUT', { is_open: isOpen === 'true' || isOpen === true });
+    toast('营业状态已更新');
+    setTimeout(() => location.reload(), 600);
+  } catch(e) { toast(e.message); }
+}
+
+function showAddItem(restId) {
+  document.getElementById('addItemRestId').value = restId;
+  document.getElementById('addItemModal').style.display = 'flex';
+}
+
+async function submitAddItem() {
+  const restId = parseInt(document.getElementById('addItemRestId').value);
+  const name = document.getElementById('addItemName').value.trim();
+  const description = document.getElementById('addItemDesc').value.trim() || null;
+  const price = parseFloat(document.getElementById('addItemPrice').value);
+  if (!name || !price) { toast('请填写菜品名称和价格'); return; }
+  try {
+    await apiFetch('/menu/items', 'POST', { restaurant_id: restId, name, description, price });
+    toast('菜品已添加');
+    document.getElementById('addItemModal').style.display = 'none';
+    setTimeout(() => location.reload(), 600);
+  } catch(e) { toast(e.message); }
+}
+</script>
+{% endblock %}

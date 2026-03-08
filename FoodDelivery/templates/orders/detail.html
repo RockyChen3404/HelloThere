@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}订单详情 - FoodDelivery{% endblock %}
+
+{% block extra_head %}
+<style>
+.order-detail { max-width:760px; margin:24px auto; }
+.status-track { display:flex; align-items:center; margin:24px 0; }
+.status-step { flex:1; text-align:center; font-size:12px; color:#aaa; }
+.status-step .dot { width:12px; height:12px; border-radius:50%; background:#ddd; margin:0 auto 6px; }
+.status-step.done .dot { background:#ff4400; }
+.status-step.done { color:#ff4400; font-weight:600; }
+.status-step.active .dot { background:#ff4400; box-shadow:0 0 0 4px rgba(255,68,0,0.2); }
+.status-step.active { color:#ff4400; font-weight:700; }
+.status-line { flex:1; height:2px; background:#ddd; max-width:40px; }
+.status-line.done { background:#ff4400; }
+.item-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #f5f5f5; font-size:15px; }
+.review-form { background:#fff; border-radius:12px; padding:20px; margin-top:16px; }
+.star-row { display:flex; gap:8px; margin:8px 0; }
+.star-btn { font-size:24px; cursor:pointer; opacity:0.4; }
+.star-btn.active { opacity:1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="order-detail">
+  <div class="card">
+    <div class="card-body">
+      <div class="flex-between">
+        <h2>订单 #{{ order.id }}</h2>
+        <span class="badge badge-{{ order.status }}">{{ STATUS_LABEL[order.status] }}</span>
+      </div>
+      <p class="text-muted text-sm mt-8">下单时间：{{ order.created_at.strftime('%Y-%m-%d %H:%M:%S') if order.created_at else '' }}</p>
+
+      <!-- Status Track -->
+      {% set steps = ['pending','accepted','preparing','ready','delivering','delivered','completed'] %}
+      {% set labels = ['待接单','已接单','制作中','待取餐','配送中','已送达','已完成'] %}
+      <div class="status-track">
+        {% for i in range(steps|length) %}
+          {% set step = steps[i] %}
+          {% set idx_current = steps.index(order.status.value) if order.status.value in steps else -1 %}
+          <div class="status-step {% if i < idx_current %}done{% elif i == idx_current %}active{% endif %}">
+            <div class="dot"></div>
+            {{ labels[i] }}
+          </div>
+          {% if i < steps|length - 1 %}
+          <div class="status-line {% if i < idx_current %}done{% endif %}"></div>
+          {% endif %}
+        {% endfor %}
+      </div>
+
+      <hr class="divider">
+      <h3 style="margin-bottom:12px;">{{ restaurant.name if restaurant else "餐厅" }}</h3>
+      {% for item in order_items %}
+      <div class="item-row">
+        <span>{{ item.name }} × {{ item.quantity }}</span>
+        <span class="text-red">¥{{ "%.2f"|format(item.unit_price * item.quantity) }}</span>
+      </div>
+      {% endfor %}
+      <div style="margin-top:12px;">
+        <div class="flex-between text-sm text-muted">
+          <span>配送费</span><span>¥{{ "%.2f"|format(order.delivery_fee) }}</span>
+        </div>
+        <div class="flex-between bold" style="margin-top:8px;font-size:17px;">
+          <span>合计</span><span class="text-red">¥{{ "%.2f"|format(order.total_price) }}</span>
+        </div>
+      </div>
+
+      <hr class="divider">
+      <div class="text-sm text-muted">📍 {{ order.delivery_address }}</div>
+      {% if order.note %}<div class="text-sm text-muted mt-8">📝 {{ order.note }}</div>{% endif %}
+
+      <!-- Action Buttons -->
+      <div class="flex gap-8 mt-16">
+        <a href="/orders" class="btn btn-secondary btn-sm">← 返回订单列表</a>
+        {% if order.status.value == 'delivered' and user and user.role == 'customer' %}
+        <button class="btn btn-primary btn-sm" onclick="confirmReceived()">确认收货</button>
+        {% endif %}
+        {% if order.status.value == 'pending' and user and user.role == 'customer' %}
+        <button class="btn btn-danger btn-sm" onclick="cancelOrder()">取消订单</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Review Form -->
+  {% if order.status.value == 'completed' and not has_review and user and user.role == 'customer' %}
+  <div class="review-form">
+    <h3 style="margin-bottom:16px;">📝 评价订单</h3>
+    <div class="form-group">
+      <label>餐厅评分</label>
+      <div class="star-row" id="restStars">
+        {% for i in range(1,6) %}
+        <span class="star-btn" onclick="setRating('rest', {{ i }})">⭐</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% if order.rider_id %}
+    <div class="form-group">
+      <label>骑手评分</label>
+      <div class="star-row" id="riderStars">
+        {% for i in range(1,6) %}
+        <span class="star-btn" onclick="setRating('rider', {{ i }})">⭐</span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+    <div class="form-group">
+      <label>评价内容（选填）</label>
+      <textarea id="reviewComment" rows="3" placeholder="分享你的用餐体验..."></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="submitReview()">提交评价</button>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const orderId = {{ order.id }};
+let restRating = 5, riderRating = 5;
+
+function setRating(type, val) {
+  if (type === 'rest') {
+    restRating = val;
+    document.querySelectorAll('#restStars .star-btn').forEach((s, i) => {
+      s.classList.toggle('active', i < val);
+    });
+  } else {
+    riderRating = val;
+    document.querySelectorAll('#riderStars .star-btn').forEach((s, i) => {
+      s.classList.toggle('active', i < val);
+    });
+  }
+}
+// Init stars active
+document.querySelectorAll('#restStars .star-btn').forEach(s => s.classList.add('active'));
+document.querySelectorAll('#riderStars .star-btn')?.forEach(s => s.classList.add('active'));
+
+async function confirmReceived() {
+  try {
+    await apiFetch(`/orders/${orderId}/status`, 'PATCH', { status: 'completed' });
+    toast('确认收货成功！');
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) { toast(e.message); }
+}
+
+async function cancelOrder() {
+  if (!confirm('确认取消订单？')) return;
+  try {
+    await apiFetch(`/orders/${orderId}/status`, 'PATCH', { status: 'cancelled' });
+    toast('订单已取消');
+    setTimeout(() => location.reload(), 1000);
+  } catch(e) { toast(e.message); }
+}
+
+async function submitReview() {
+  const comment = document.getElementById('reviewComment').value.trim();
+  try {
+    await apiFetch('/reviews/', 'POST', {
+      order_id: orderId,
+      restaurant_rating: restRating,
+      rider_rating: riderRating,
+      comment: comment || null,
+    });
+    toast('评价提交成功！感谢你的反馈 🎉');
+    setTimeout(() => location.reload(), 1500);
+  } catch(e) { toast(e.message); }
+}
+</script>
+{% endblock %}

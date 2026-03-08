@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}骑手中心 - FoodDelivery{% endblock %}
+
+{% block extra_head %}
+<style>
+.order-card { background:#fff; border-radius:12px; padding:20px; margin-bottom:14px; box-shadow:0 2px 8px rgba(0,0,0,0.06); }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+@media(max-width:700px){.grid2{grid-template-columns:1fr;}}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+  <h2 style="margin:24px 0 16px;">🛵 骑手中心</h2>
+  <div class="grid2">
+    <!-- Available Orders -->
+    <div>
+      <h3 style="margin-bottom:14px;">📦 待接配送订单</h3>
+      {% if available_orders %}
+        {% for order in available_orders %}
+        {% set rest = restaurants.get(order.restaurant_id) %}
+        <div class="order-card">
+          <div class="flex-between">
+            <strong>订单 #{{ order.id }}</strong>
+            <span class="badge badge-ready">待取餐</span>
+          </div>
+          <div class="text-sm text-muted mt-8">🏪 {{ rest.name if rest else "餐厅" }}</div>
+          <div class="text-sm text-muted">📍 {{ order.delivery_address }}</div>
+          <div class="text-sm text-muted">💰 ¥{{ "%.2f"|format(order.total_price) }}</div>
+          <button class="btn btn-primary btn-sm mt-16" style="width:100%;" onclick="pickupOrder({{ order.id }})">
+            接单并配送
+          </button>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="order-card" style="text-align:center;color:#aaa;padding:40px;">暂无待配送订单</div>
+      {% endif %}
+    </div>
+
+    <!-- My Orders -->
+    <div>
+      <h3 style="margin-bottom:14px;">📋 我的配送记录</h3>
+      {% if my_orders %}
+        {% for order in my_orders %}
+        {% set rest = restaurants.get(order.restaurant_id) %}
+        <div class="order-card">
+          <div class="flex-between">
+            <strong>订单 #{{ order.id }}</strong>
+            <span class="badge badge-{{ order.status }}">{{ STATUS_LABEL[order.status] }}</span>
+          </div>
+          <div class="text-sm text-muted mt-8">🏪 {{ rest.name if rest else "餐厅" }}</div>
+          <div class="text-sm text-muted">📍 {{ order.delivery_address }}</div>
+          <div class="text-sm text-muted">💰 ¥{{ "%.2f"|format(order.total_price) }}</div>
+          {% if order.status.value == 'delivering' %}
+          <button class="btn btn-success btn-sm mt-16" style="width:100%;" onclick="confirmDelivered({{ order.id }})">
+            确认送达
+          </button>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="order-card" style="text-align:center;color:#aaa;padding:40px;">暂无配送记录</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+async function pickupOrder(orderId) {
+  try {
+    await apiFetch(`/orders/${orderId}/status`, 'PATCH', { status: 'delivering' });
+    toast('已接单，开始配送！');
+    setTimeout(() => location.reload(), 800);
+  } catch(e) { toast(e.message); }
+}
+
+async function confirmDelivered(orderId) {
+  try {
+    await apiFetch(`/orders/${orderId}/status`, 'PATCH', { status: 'delivered' });
+    toast('已确认送达 ✅');
+    setTimeout(() => location.reload(), 800);
+  } catch(e) { toast(e.message); }
+}
+</script>
+{% endblock %}
